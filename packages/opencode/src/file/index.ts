@@ -315,6 +315,7 @@ export interface Interface {
   readonly init: () => Effect.Effect<void>
   readonly status: () => Effect.Effect<Info[]>
   readonly read: (file: string) => Effect.Effect<Content>
+  readonly readRaw: (file: string) => Effect.Effect<{ content: Uint8Array; mimeType: string }>
   readonly list: (dir?: string) => Effect.Effect<Node[]>
   readonly search: (input: {
     query: string
@@ -564,6 +565,24 @@ export const layer = Layer.effect(
       return { type: "text" as const, content }
     })
 
+    const readRaw: Interface["readRaw"] = Effect.fn("File.readRaw")(function* (file: string) {
+      using _ = log.time("readRaw", { file })
+      const ctx = yield* InstanceState.context
+      const full = path.join(ctx.directory, file)
+
+      if (!containsPath(full, ctx)) {
+        throw new Error("Access denied: path escapes project directory")
+      }
+
+      const exists = yield* appFs.existsSafe(full)
+      if (!exists) throw new Error(`File not found: ${file}`)
+
+      const content = yield* appFs.readFile(full).pipe(Effect.catch(() => Effect.succeed(new Uint8Array())))
+      const mimeType = AppFileSystem.mimeType(full)
+
+      return { content, mimeType }
+    })
+
     const list = Effect.fn("File.list")(function* (dir?: string) {
       const ctx = yield* InstanceState.context
       const exclude = [".git", ".DS_Store"]
@@ -638,7 +657,7 @@ export const layer = Layer.effect(
     })
 
     log.info("init")
-    return Service.of({ init, status, read, list, search })
+    return Service.of({ init, status, read, readRaw, list, search })
   }),
 )
 

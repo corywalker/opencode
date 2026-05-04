@@ -9,7 +9,7 @@ import { Font } from "@opencode-ai/ui/font"
 import { Splash } from "@opencode-ai/ui/logo"
 import { ThemeProvider } from "@opencode-ai/ui/theme/context"
 import { MetaProvider } from "@solidjs/meta"
-import { type BaseRouterProps, Navigate, Route, Router } from "@solidjs/router"
+import { type BaseRouterProps, Navigate, Route, Router, useParams } from "@solidjs/router"
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query"
 import { Effect } from "effect"
 import {
@@ -42,6 +42,8 @@ import { PromptProvider } from "@/context/prompt"
 import { ServerConnection, ServerProvider, serverName, useServer } from "@/context/server"
 import { SettingsProvider } from "@/context/settings"
 import { TerminalProvider } from "@/context/terminal"
+import { authTokenFromCredentials } from "@/utils/server"
+import { decode64 } from "@/utils/base64"
 import DirectoryLayout from "@/pages/directory-layout"
 import Layout from "@/pages/layout"
 import { ErrorPage } from "./pages/error"
@@ -128,12 +130,38 @@ function SessionProviders(props: ParentProps) {
 }
 
 function RouterRoot(props: ParentProps<{ appChildren?: JSX.Element }>) {
+  const server = useServer()
+  const params = useParams()
+
+  const resolveImage = (src: string) => {
+    if (/^https?:\/\//.test(src) || src.startsWith("data:") || src.startsWith("/")) return src
+    const current = server.current
+    if (!current) return src
+
+    const url = new URL(current.http.url)
+    url.pathname = "/file/raw"
+    url.searchParams.set("path", src)
+
+    const dir = params.dir ? decode64(params.dir) : undefined
+    if (dir) {
+      url.searchParams.set("directory", dir)
+    }
+
+    if (current.http.password) {
+      url.searchParams.set(
+        "auth_token",
+        authTokenFromCredentials({ username: current.http.username, password: current.http.password }),
+      )
+    }
+    return url.toString()
+  }
+
   return (
     <AppShellProviders>
-      {/*<Suspense fallback={<Loading />}>*/}
-      {props.appChildren}
-      {props.children}
-      {/*</Suspense>*/}
+      <MarkedProvider resolveImage={resolveImage}>
+        {props.appChildren}
+        {props.children}
+      </MarkedProvider>
     </AppShellProviders>
   )
 }
@@ -157,9 +185,7 @@ export function AppBaseProviders(props: ParentProps<{ locale?: Locale }>) {
             >
               <QueryProvider>
                 <DialogProvider>
-                  <MarkedProvider>
-                    <FileComponentProvider component={File}>{props.children}</FileComponentProvider>
-                  </MarkedProvider>
+                  <FileComponentProvider component={File}>{props.children}</FileComponentProvider>
                 </DialogProvider>
               </QueryProvider>
             </ErrorBoundary>
