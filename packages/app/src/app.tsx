@@ -14,6 +14,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/solid-query"
 import { Effect } from "effect"
 import {
   type Component,
+  createEffect,
   createMemo,
   createResource,
   createSignal,
@@ -166,7 +167,54 @@ function RouterRoot(props: ParentProps<{ appChildren?: JSX.Element }>) {
   )
 }
 
-export function AppBaseProviders(props: ParentProps<{ locale?: Locale }>) {
+function AppMarkedProvider(props: ParentProps) {
+  const server = useServer()
+  const [currentDir, setCurrentDir] = createSignal("")
+
+  createEffect(() => {
+    const path = window.location.pathname
+    const match = path.match(/^\/([^/]+)/)
+    if (match && match[1] !== "session") {
+      setCurrentDir(decode64(match[1]) ?? "")
+    } else {
+      setCurrentDir("")
+    }
+  })
+
+  const resolveImage = (src: string) => {
+    if (/^https?:\/\//.test(src) || src.startsWith("data:") || src.startsWith("/")) return src
+    const current = server.current
+    if (!current) return src
+
+    const url = new URL(current.http.url)
+    url.pathname = "/file/raw"
+    url.searchParams.set("path", src)
+
+    const dir = currentDir()
+    if (dir) {
+      url.searchParams.set("directory", dir)
+    }
+
+    if (current.http.password) {
+      url.searchParams.set(
+        "auth_token",
+        authTokenFromCredentials({ username: current.http.username, password: current.http.password }),
+      )
+    }
+    return url.toString()
+  }
+
+  return <MarkedProvider resolveImage={resolveImage}>{props.children}</MarkedProvider>
+}
+
+export function AppBaseProviders(
+  props: ParentProps<{
+    locale?: Locale
+    defaultServer?: ServerConnection.Key
+    servers?: Array<ServerConnection.Any>
+    disableHealthCheck?: boolean
+  }>,
+) {
   return (
     <MetaProvider>
       <Font />
@@ -183,11 +231,30 @@ export function AppBaseProviders(props: ParentProps<{ locale?: Locale }>) {
                 return <ErrorPage error={error} />
               }}
             >
-              <QueryProvider>
-                <DialogProvider>
-                  <FileComponentProvider component={File}>{props.children}</FileComponentProvider>
-                </DialogProvider>
-              </QueryProvider>
+              <Show
+                when={props.defaultServer}
+                fallback={
+                  <QueryProvider>
+                    <DialogProvider>
+                      <FileComponentProvider component={File}>{props.children}</FileComponentProvider>
+                    </DialogProvider>
+                  </QueryProvider>
+                }
+              >
+                <ServerProvider
+                  defaultServer={props.defaultServer!}
+                  disableHealthCheck={props.disableHealthCheck}
+                  servers={props.servers}
+                >
+                  <AppMarkedProvider>
+                    <QueryProvider>
+                      <DialogProvider>
+                        <FileComponentProvider component={File}>{props.children}</FileComponentProvider>
+                      </DialogProvider>
+                    </QueryProvider>
+                  </AppMarkedProvider>
+                </ServerProvider>
+              </Show>
             </ErrorBoundary>
           </UiI18nBridge>
         </LanguageProvider>
@@ -320,37 +387,27 @@ function ServerKey(props: ParentProps) {
 
 export function AppInterface(props: {
   children?: JSX.Element
-  defaultServer: ServerConnection.Key
-  servers?: Array<ServerConnection.Any>
   router?: Component<BaseRouterProps>
   disableHealthCheck?: boolean
 }) {
   return (
-    <ServerProvider
-      defaultServer={props.defaultServer}
-      disableHealthCheck={props.disableHealthCheck}
-      servers={props.servers}
-    >
-      <ConnectionGate disableHealthCheck={props.disableHealthCheck}>
-        <ServerKey>
-          <QueryProvider>
-            <GlobalSDKProvider>
-              <GlobalSyncProvider>
-                <Dynamic
-                  component={props.router ?? Router}
-                  root={(routerProps) => <RouterRoot appChildren={props.children}>{routerProps.children}</RouterRoot>}
-                >
-                  <Route path="/" component={HomeRoute} />
-                  <Route path="/:dir" component={DirectoryLayout}>
-                    <Route path="/" component={SessionIndexRoute} />
-                    <Route path="/session/:id?" component={SessionRoute} />
-                  </Route>
-                </Dynamic>
-              </GlobalSyncProvider>
-            </GlobalSDKProvider>
-          </QueryProvider>
-        </ServerKey>
-      </ConnectionGate>
-    </ServerProvider>
+    <ConnectionGate disableHealthCheck={props.disableHealthCheck}>
+      <ServerKey>
+        <GlobalSDKProvider>
+          <GlobalSyncProvider>
+            <Dynamic
+              component={props.router ?? Router}
+              root={(routerProps) => <RouterRoot appChildren={props.children}>{routerProps.children}</RouterRoot>}
+            >
+              <Route path="/" component={HomeRoute} />
+              <Route path="/:dir" component={DirectoryLayout}>
+                <Route path="/" component={SessionIndexRoute} />
+                <Route path="/session/:id?" component={SessionRoute} />
+              </Route>
+            </Dynamic>
+          </GlobalSyncProvider>
+        </GlobalSDKProvider>
+      </ServerKey>
+    </ConnectionGate>
   )
 }
