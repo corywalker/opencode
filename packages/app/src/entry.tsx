@@ -167,12 +167,12 @@ if (root instanceof HTMLElement) {
   render(
     () => (
       <PlatformProvider value={platform}>
-        <AppBaseProviders>
-          <AppInterface
-            defaultServer={ServerConnection.Key.make(getDefaultUrl())}
-            servers={[server]}
-            disableHealthCheck
-          />
+        <AppBaseProviders
+          defaultServer={ServerConnection.Key.make(getDefaultUrl())}
+          servers={[server]}
+          disableHealthCheck
+        >
+          <AppInterface disableHealthCheck />
         </AppBaseProviders>
       </PlatformProvider>
     ),
