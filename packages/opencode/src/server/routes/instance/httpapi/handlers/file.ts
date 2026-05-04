@@ -2,6 +2,7 @@ import * as InstanceState from "@/effect/instance-state"
 import { File } from "@/file"
 import { Ripgrep } from "@/file/ripgrep"
 import { Effect } from "effect"
+import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
 
@@ -39,6 +40,13 @@ export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handl
       return yield* svc.read(ctx.query.path)
     })
 
+    const raw = Effect.fn("FileHttpApi.raw")(function* (ctx: { query: { path: string } }) {
+      const { content, mimeType } = yield* svc.readRaw(ctx.query.path)
+      return HttpServerResponse.raw(content, {
+        headers: { "content-type": mimeType },
+      })
+    })
+
     const status = Effect.fn("FileHttpApi.status")(function* () {
       return yield* svc.status()
     })
@@ -49,6 +57,7 @@ export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handl
       .handle("findSymbol", findSymbol)
       .handle("list", list)
       .handle("content", content)
+      .handle("raw", raw)
       .handle("status", status)
   }),
 )

@@ -465,15 +465,28 @@ async function highlightCodeBlocks(html: string): Promise<string> {
 
 export type NativeMarkdownParser = (markdown: string) => Promise<string>
 
+function resolveImagesInHtml(html: string, resolve: (src: string) => string): string {
+  const imgRegex = /<img\b([^>]*)\bsrc=(['"])(.*?)\2([^>]*)>/gi
+  return html.replace(imgRegex, (_, before, quote, src, after) => {
+    return `<img${before}src=${quote}${resolve(src)}${quote}${after}>`
+  })
+}
+
 export const { use: useMarked, provider: MarkedProvider } = createSimpleContext({
   name: "Marked",
-  init: (props: { nativeParser?: NativeMarkdownParser }) => {
+  init: (props: { nativeParser?: NativeMarkdownParser; resolveImage?: (src: string) => string }) => {
     const jsParser = marked.use(
       {
         renderer: {
           link({ href, title, text }) {
             const titleAttr = title ? ` title="${title}"` : ""
             return `<a href="${href}"${titleAttr} class="external-link" target="_blank" rel="noopener noreferrer">${text}</a>`
+          },
+          image({ href, title, text }) {
+            const src = props.resolveImage ? props.resolveImage(href) : href
+            const titleAttr = title ? ` title="${title}"` : ""
+            const altAttr = text ? ` alt="${text}"` : ""
+            return `<img src="${src}"${altAttr}${titleAttr} />`
           },
         },
       },
@@ -508,7 +521,8 @@ export const { use: useMarked, provider: MarkedProvider } = createSimpleContext(
       return {
         async parse(markdown: string): Promise<string> {
           const html = await nativeParser(markdown)
-          const withMath = renderMathExpressions(html)
+          const withImages = props.resolveImage ? resolveImagesInHtml(html, props.resolveImage) : html
+          const withMath = renderMathExpressions(withImages)
           return highlightCodeBlocks(withMath)
         },
       }

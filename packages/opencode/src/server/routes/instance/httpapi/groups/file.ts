@@ -35,6 +35,7 @@ export const FilePaths = {
   findSymbol: "/find/symbol",
   list: "/file",
   content: "/file/content",
+  raw: "/file/raw",
   status: "/file/status",
 } as const
 
@@ -90,6 +91,16 @@ export const FileApi = HttpApi.make("file")
             identifier: "file.read",
             summary: "Read file",
             description: "Read the content of a specified file.",
+          }),
+        ),
+        HttpApiEndpoint.get("raw", FilePaths.raw, {
+          query: FileQuery,
+          success: Schema.Uint8Array,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "file.raw",
+            summary: "Read raw file",
+            description: "Read the raw content of a specified file.",
           }),
         ),
         HttpApiEndpoint.get("status", FilePaths.status, {

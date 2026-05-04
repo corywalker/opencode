@@ -6,7 +6,7 @@ import { Ripgrep } from "@/file/ripgrep"
 import { LSP } from "@/lsp/lsp"
 import { Instance } from "@/project/instance"
 import { lazy } from "@/util/lazy"
-import { jsonRequest } from "./trace"
+import { jsonRequest, runRequest } from "./trace"
 
 export const FileRoutes = lazy(() =>
   new Hono()
@@ -163,6 +163,31 @@ export const FileRoutes = lazy(() =>
           const svc = yield* File.Service
           return yield* svc.read(c.req.valid("query").path)
         }),
+    )
+    .get(
+      "/file/raw",
+      describeRoute({
+        summary: "Read raw file",
+        description: "Read the raw content of a specified file.",
+        operationId: "file.raw",
+      }),
+      validator(
+        "query",
+        z.object({
+          path: z.string(),
+        }),
+      ),
+      async (c) => {
+        const { content, mimeType } = await runRequest(
+          "FileRoutes.raw",
+          c,
+          Effect.gen(function* () {
+            const svc = yield* File.Service
+            return yield* svc.readRaw(c.req.valid("query").path)
+          }),
+        )
+        return c.body(content, 200, { "content-type": mimeType })
+      },
     )
     .get(
       "/file/status",
