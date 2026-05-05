@@ -199,7 +199,7 @@ function warmSessions(input: {
 
 export const loadProvidersQuery = (directory: string | null, sdk?: OpencodeClient) =>
   queryOptions({
-    queryKey: ["providers"],
+    queryKey: [directory, "providers"],
     queryFn: sdk ? () => retry(() => sdk.provider.list().then((x) => normalizeProviderList(x.data!))) : skipToken,
     staleTime: 1000 * 60 * 5, // 5 minutes
   })
