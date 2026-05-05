@@ -18,7 +18,7 @@ import { reconcile, type SetStoreFunction, type Store } from "solid-js/store"
 import type { State, VcsCache } from "./types"
 import { cmp, normalizeAgentList, normalizeProviderList } from "./utils"
 import { formatServerError } from "@/utils/server-errors"
-import { QueryClient, queryOptions } from "@tanstack/solid-query"
+import { QueryClient, queryOptions, skipToken } from "@tanstack/solid-query"
 import { loadMcpQuery } from "../global-sync"
 
 type GlobalStore = {
@@ -181,7 +181,8 @@ function warmSessions(input: {
 export const loadProvidersQuery = (directory: string | null, sdk: OpencodeClient) =>
   queryOptions({
     queryKey: [directory, "providers"],
-    queryFn: () => retry(() => sdk.provider.list().then((x) => normalizeProviderList(x.data!))),
+    queryFn: sdk ? () => retry(() => sdk.provider.list().then((x) => normalizeProviderList(x.data!))) : skipToken,
+    staleTime: 1000 * 60 * 5, // 5 minutes
   })
 
 export const loadAgentsQuery = (directory: string | null, sdk: OpencodeClient) =>
