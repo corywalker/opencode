@@ -17,7 +17,16 @@ export async function serveUI(request: Request) {
     if (await fs.exists(match)) {
       const mime = AppFileSystem.mimeType(match)
       const headers = new Headers({ "content-type": mime })
-      if (mime.startsWith("text/html")) headers.set("content-security-policy", DEFAULT_CSP)
+      if (mime.startsWith("text/html")) {
+        headers.set("content-security-policy", DEFAULT_CSP)
+      }
+
+      if (path.includes("/assets/") && /-[a-zA-Z0-9]{8,}\./.test(path)) {
+        headers.set("cache-control", "public, max-age=31536000, immutable")
+      } else {
+        headers.set("cache-control", "no-cache")
+      }
+
       return new Response(new Uint8Array(await fs.readFile(match)), { headers })
     }
 
