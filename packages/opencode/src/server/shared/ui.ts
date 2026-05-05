@@ -54,11 +54,17 @@ function notFound() {
   return HttpServerResponse.jsonUnsafe({ error: "Not Found" }, { status: 404 })
 }
 
-function embeddedUIResponse(file: string, body: Uint8Array) {
+function embeddedUIResponse(requestPath: string, file: string, body: Uint8Array) {
   const mime = AppFileSystem.mimeType(file)
   const headers = new Headers({ "content-type": mime })
   if (mime.startsWith("text/html")) {
     headers.set("content-security-policy", cspForHtml(new TextDecoder().decode(body)))
+  }
+
+  if (requestPath.includes("/assets/") && /-[a-zA-Z0-9]{8,}\./.test(requestPath)) {
+    headers.set("cache-control", "public, max-age=31536000, immutable")
+  } else {
+    headers.set("cache-control", "no-cache")
   }
   return HttpServerResponse.raw(body, { headers })
 }
@@ -72,7 +78,7 @@ export function serveEmbeddedUIEffect(
   if (!file) return Effect.succeed(notFound())
 
   return fs.readFile(file).pipe(
-    Effect.map((body) => embeddedUIResponse(file, body)),
+    Effect.map((body) => embeddedUIResponse(requestPath, file, body)),
     Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(notFound())),
   )
 }

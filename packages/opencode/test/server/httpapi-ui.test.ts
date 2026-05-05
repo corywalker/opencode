@@ -252,12 +252,12 @@ describe("HttpApi UI fallback", () => {
     expect(response.status).toBe(200)
     expect(readPath).toBe("/$bunfs/root/assets/app.js")
     expect(response.headers.get("content-type")).toContain("text/javascript")
+    expect(response.headers.get("cache-control")).toBe("no-cache")
     expect(await response.text()).toBe("console.log('embedded')")
   })
 
   test("allows embedded UI terminal wasm and theme preload CSP", async () => {
     const script = 'document.documentElement.dataset.theme = "dark"'
-
     const response = await Effect.runPromise(
       Effect.gen(function* () {
         const fs = yield* AppFileSystem.Service
@@ -284,6 +284,48 @@ describe("HttpApi UI fallback", () => {
     expect(csp).toContain("script-src 'self' 'wasm-unsafe-eval'")
     expect(csp).toContain(`'sha256-${createHash("sha256").update(script).digest("base64")}'`)
     expect(csp).toContain("connect-src * data:")
+  })
+
+  test("sets long cache headers for hashed assets", async () => {
+    Flag.OPENCODE_EXPERIMENTAL_HTTPAPI = true
+
+    const response = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fs = yield* AppFileSystem.Service
+        return yield* serveEmbeddedUIEffect(
+          "/assets/index-ByzcVvdi.js",
+          {
+            ...fs,
+            readFile: () => Effect.succeed(new TextEncoder().encode("console.log('hashed')")),
+          },
+          { "assets/index-ByzcVvdi.js": "/$bunfs/root/assets/index-ByzcVvdi.js" },
+        )
+      }).pipe(Effect.provide(AppFileSystem.defaultLayer), Effect.map(HttpServerResponse.toWeb)),
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get("cache-control")).toBe("public, max-age=31536000, immutable")
+  })
+
+  test("sets no-cache for non-hashed assets", async () => {
+    Flag.OPENCODE_EXPERIMENTAL_HTTPAPI = true
+
+    const response = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fs = yield* AppFileSystem.Service
+        return yield* serveEmbeddedUIEffect(
+          "/index.html",
+          {
+            ...fs,
+            readFile: () => Effect.succeed(new TextEncoder().encode("<html></html>")),
+          },
+          { "index.html": "/$bunfs/root/index.html" },
+        )
+      }).pipe(Effect.provide(AppFileSystem.defaultLayer), Effect.map(HttpServerResponse.toWeb)),
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get("cache-control")).toBe("no-cache")
   })
 
   test("keeps matched API routes ahead of the UI fallback", async () => {
