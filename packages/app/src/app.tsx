@@ -142,6 +142,7 @@ function RouterRoot(props: ParentProps<{ appChildren?: JSX.Element }>) {
     const url = new URL(current.http.url)
     url.pathname = "/file/raw"
     url.searchParams.set("path", src)
+    url.searchParams.set("v", Math.floor(Date.now() / 10000).toString())
 
     const dir = params.dir ? decode64(params.dir) : undefined
     if (dir) {
@@ -189,6 +190,7 @@ function AppMarkedProvider(props: ParentProps) {
     const url = new URL(current.http.url)
     url.pathname = "/file/raw"
     url.searchParams.set("path", src)
+    url.searchParams.set("v", Math.floor(Date.now() / 10000).toString())
 
     const dir = currentDir()
     if (dir) {
@@ -284,7 +286,7 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
             if (checkMode() === "background" || type === "http") return false
           }
         }).pipe(
-          Effect.timeoutOrElse({ duration: "10 seconds", orElse: () => Effect.succeed(false) }),
+            Effect.timeoutOrElse({ duration: "10 seconds", orElse: () => Effect.succeed(false) }),
           Effect.ensuring(Effect.sync(() => setCheckMode("background"))),
           Effect.runPromise,
         ),

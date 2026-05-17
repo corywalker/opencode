@@ -43,7 +43,10 @@ export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handl
     const raw = Effect.fn("FileHttpApi.raw")(function* (ctx: { query: { path: string } }) {
       const { content, mimeType } = yield* svc.readRaw(ctx.query.path)
       return HttpServerResponse.raw(content, {
-        headers: { "content-type": mimeType },
+        headers: {
+          "content-type": mimeType,
+          "cache-control": "no-cache",
+        },
       })
     })
 
